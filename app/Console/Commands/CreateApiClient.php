@@ -2,14 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ApiClient;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use App\Models\ApiClient;
 
-# #[Signature('app:create-api-client')]
-# #[Description('Command description')]
-
+// #[Signature('app:create-api-client')]
+// #[Description('Command description')]
 
 class CreateApiClient extends Command
 {
@@ -29,7 +28,7 @@ class CreateApiClient extends Command
             return self::FAILURE;
         }
 
-        $plainTextKey = 'rg_live_' . bin2hex(random_bytes(32));
+        $plainTextKey = 'rg_live_'.bin2hex(random_bytes(32));
 
         $client = ApiClient::create([
             'name' => $name,
@@ -39,8 +38,8 @@ class CreateApiClient extends Command
 
         $this->newLine();
         $this->info('API client created successfully.');
-        $this->line('Client ID: ' . $client->id);
-        $this->line('Client name: ' . $client->name);
+        $this->line('Client ID: '.$client->id);
+        $this->line('Client name: '.$client->name);
         $this->newLine();
 
         $this->warn('Your API key is displayed only once. Store it securely.');

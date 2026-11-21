@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WebhookDelivery extends Model
 {
@@ -18,6 +17,7 @@ class WebhookDelivery extends Model
         'last_error',
         'next_attempt_at',
         'delivered_at',
+        'last_dispatched_at',
     ];
 
     protected function casts(): array
@@ -27,6 +27,7 @@ class WebhookDelivery extends Model
             'http_status' => 'integer',
             'next_attempt_at' => 'immutable_datetime',
             'delivered_at' => 'immutable_datetime',
+            'last_dispatched_at' => 'immutable_datetime',
         ];
     }
 

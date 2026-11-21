@@ -6,10 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWebhookEventRequest;
 use App\Models\ApiClient;
 use App\Models\WebhookEvent;
+use App\Services\Webhooks\WebhookDeliveryDispatcher;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
-use JsonException;
 use Illuminate\Support\Facades\DB;
+use JsonException;
 
 class EventController extends Controller
 {
@@ -22,7 +23,8 @@ class EventController extends Controller
      * @throws JsonException
      */
     public function store(
-        StoreWebhookEventRequest $request
+        StoreWebhookEventRequest $request,
+        WebhookDeliveryDispatcher $dispatcher
     ): JsonResponse {
         /** @var ApiClient $apiClient */
         $apiClient = $request->attributes->get('api_client');
@@ -45,7 +47,8 @@ class EventController extends Controller
         try {
             $event = DB::transaction(function () use (
                 $apiClient,
-                $data
+                $data,
+                $dispatcher
             ): WebhookEvent {
                 // 1. Store the incoming event.
                 $event = WebhookEvent::create([
@@ -62,7 +65,7 @@ class EventController extends Controller
                     ->pluck('id');
 
                 // 3. Create one pending delivery for each endpoint.
-                $event->deliveries()->createMany(
+                $deliveries = $event->deliveries()->createMany(
                     $endpointIds->map(
                         fn ($endpointId) => [
                             'webhook_endpoint_id' => $endpointId,
@@ -70,6 +73,12 @@ class EventController extends Controller
                         ]
                     )->all()
                 );
+
+                // 4. Schedule deliveries through the dispatcher.
+                // Jobs are dispatched only after the outer transaction commits.
+                foreach ($deliveries->modelKeys() as $deliveryId) {
+                    $dispatcher->dispatch($deliveryId);
+                }
 
                 return $event;
             });
@@ -80,7 +89,7 @@ class EventController extends Controller
                 ->where('idempotency_key', $data['idempotency_key'])
                 ->first();
 
-            if (!$existingEvent) {
+            if (! $existingEvent) {
                 throw $exception;
             }
 
@@ -107,7 +116,7 @@ class EventController extends Controller
         string $eventType,
         array $payload
     ): JsonResponse {
-        if (!$this->hasSameContent($event, $eventType, $payload)) {
+        if (! $this->hasSameContent($event, $eventType, $payload)) {
             return response()->json([
                 'message' => 'Idempotency key already used with different content.',
             ], 409);

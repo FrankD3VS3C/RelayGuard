@@ -3,18 +3,27 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\ApiClient;
-use App\Models\WebhookEvent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 use App\Models\WebhookEndpoint;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Tests\TestCase;
 
 class StoreWebhookEventTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Queue::fake();
+    }
+
     private function createApiClient(bool $active = true): array
     {
-        $plainTextKey = 'rg_test_' . bin2hex(random_bytes(32));
+        $plainTextKey = 'rg_test_'.bin2hex(random_bytes(32));
 
         $client = ApiClient::create([
             'name' => 'Automated Test Client',
@@ -234,5 +243,39 @@ class StoreWebhookEventTest extends TestCase
 
         $this->assertDatabaseCount('webhook_events', 1);
         $this->assertDatabaseCount('webhook_deliveries', 2);
+    }
+
+    public function test_event_and_deliveries_are_rolled_back_when_delivery_insert_fails(): void
+    {
+        [$client, $apiKey] = $this->createApiClient();
+
+        WebhookEndpoint::create([
+            'api_client_id' => $client->id,
+            'name' => 'Atomicity test endpoint',
+            'url' => 'https://example.test/webhook',
+            'signing_secret' => 'test-signing-secret',
+            'is_active' => true,
+        ]);
+
+        DB::statement("
+            CREATE TRIGGER fail_webhook_delivery_insert
+            BEFORE INSERT ON webhook_deliveries
+            BEGIN
+                SELECT RAISE(ABORT, 'Simulated delivery insert failure');
+            END
+        ");
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->withToken($apiKey)
+                ->withHeader('Idempotency-Key', 'atomicity-test-001')
+                ->postJson('/api/v1/events', $this->validPayload());
+
+            $this->fail('Expected the delivery insert to fail.');
+        } catch (QueryException $exception) {
+            $this->assertDatabaseCount('webhook_events', 0);
+            $this->assertDatabaseCount('webhook_deliveries', 0);
+        }
     }
 }

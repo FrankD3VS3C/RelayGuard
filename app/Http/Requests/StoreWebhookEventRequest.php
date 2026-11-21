@@ -45,20 +45,15 @@ class StoreWebhookEventRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'idempotency_key.required' =>
-                'The Idempotency-Key header is required.',
+            'idempotency_key.required' => 'The Idempotency-Key header is required.',
 
-            'idempotency_key.regex' =>
-                'The Idempotency-Key contains invalid characters.',
+            'idempotency_key.regex' => 'The Idempotency-Key contains invalid characters.',
 
-            'event_type.required' =>
-                'The event type is required.',
+            'event_type.required' => 'The event type is required.',
 
-            'payload.required' =>
-                'The event payload is required.',
+            'payload.required' => 'The event payload is required.',
 
-            'payload.array' =>
-                'The event payload must be a JSON object or array.',
+            'payload.array' => 'The event payload must be a JSON object or array.',
         ];
     }
 }
